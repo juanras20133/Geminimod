@@ -1,0 +1,281 @@
+--[[ 
+    GEMINI V1 - RIVALS EDITION (ULTIMATE V6)
+    - NUEVO: Variable de distancia configurable (_G.AimbotDistance).
+    - NUEVO: Wall Check (No apunta a través de paredes).
+    - MANTENIDO: Todo lo de la V5 (Health ESP, Skeleton, Chams, UI).
+--]]
+
+-- --- CONFIGURACIÓN ---
+_G.AimbotDistance = 100 -- <--- Cambia este número para los Studs de alcance
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+if game:GetService("CoreGui"):FindFirstChild("GeminiV1_Ultimate") then game:GetService("CoreGui").GeminiV1_Ultimate:Destroy() end
+pcall(function() RunService:UnbindFromRenderStep("GeminiV1_Loop") end)
+
+local Settings = {
+    Aimbot = false, Noclip = false, Chams = false, ESP = false, Skeleton = false, 
+    HealthESP = false, TargetMode = "Head", FOV = 150
+}
+
+local TargetParts = {"Head", "UpperTorso"}
+
+-- --- FUNCIÓN DE VISIBILIDAD (WALL CHECK) ---
+local function IsVisible(part, character)
+    local rayParam = RaycastParams.new()
+    rayParam.FilterType = Enum.RaycastFilterType.Exclude
+    rayParam.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    
+    local rayResult = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * _G.AimbotDistance, rayParam)
+    
+    if rayResult and rayResult.Instance:IsDescendantOf(character) then
+        return true
+    end
+    return false
+end
+
+-- --- UI ---
+local SG = Instance.new("ScreenGui", game:GetService("CoreGui")); SG.Name = "GeminiV1_Ultimate"
+local Main = Instance.new("Frame", SG)
+Main.Size = UDim2.new(0, 160, 0, 330) 
+Main.Position = UDim2.new(0.05, 0, 0.3, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 2
+Main.BorderColor3 = Color3.fromRGB(255, 0, 0)
+Main.Active = true
+
+local dragging, dragInput, dragStart, startPos
+Main.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -30, 0, 25); Title.Text = " GEMINI V1"; Title.TextColor3 = Color3.new(1,1,1)
+Title.BackgroundTransparency = 1; Title.Font = Enum.Font.Code; Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local MinBtn = Instance.new("TextButton", Main)
+MinBtn.Size = UDim2.new(0, 25, 0, 25); MinBtn.Position = UDim2.new(1, -25, 0, 0)
+MinBtn.Text = "-"; MinBtn.BackgroundColor3 = Color3.fromRGB(40, 0, 0); MinBtn.TextColor3 = Color3.new(1, 1, 1)
+
+local Content = Instance.new("Frame", Main)
+Content.Size = UDim2.new(1, 0, 1, -25); Content.Position = UDim2.new(0, 0, 0, 25); Content.BackgroundTransparency = 1
+
+MinBtn.MouseButton1Click:Connect(function()
+    Content.Visible = not Content.Visible
+    Main:TweenSize(Content.Visible and UDim2.new(0, 160, 0, 330) or UDim2.new(0, 160, 0, 25), "Out", "Quad", 0.2, true)
+    MinBtn.Text = Content.Visible and "-" or "+"
+end)
+
+local function AddBtn(text, prop, y)
+    local b = Instance.new("TextButton", Content)
+    b.Size = UDim2.new(0.9, 0, 0, 30); b.Position = UDim2.new(0.05, 0, 0, y)
+    b.Text = text .. ": OFF"; b.BackgroundColor3 = Color3.fromRGB(30, 30, 30); b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.Code
+    b.MouseButton1Click:Connect(function()
+        Settings[prop] = not Settings[prop]
+        b.Text = text .. ": " .. (Settings[prop] and "ON" or "OFF")
+        b.BackgroundColor3 = Settings[prop] and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(30, 30, 30)
+    end)
+end
+
+AddBtn("AIMBOT", "Aimbot", 5)
+AddBtn("NOCLIP", "Noclip", 40)
+AddBtn("CHAMS", "Chams", 75)
+AddBtn("LINE ESP", "ESP", 110)
+AddBtn("SKELETON", "Skeleton", 145)
+AddBtn("HEALTH ESP", "HealthESP", 180)
+
+local TgtBtn = Instance.new("TextButton", Content)
+TgtBtn.Size = UDim2.new(0.9, 0, 0, 30); TgtBtn.Position = UDim2.new(0.05, 0, 0, 215)
+TgtBtn.Text = "TARGET: HEAD"; TgtBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30); TgtBtn.TextColor3 = Color3.new(1,1,1); TgtBtn.Font = Enum.Font.Code
+TgtBtn.MouseButton1Click:Connect(function()
+    if Settings.TargetMode == "Head" then Settings.TargetMode = "Body"
+    elseif Settings.TargetMode == "Body" then Settings.TargetMode = "Random"
+    else Settings.TargetMode = "Head" end
+    TgtBtn.Text = "TARGET: " .. Settings.TargetMode:upper()
+end)
+
+local SliderFrame = Instance.new("Frame", Content)
+SliderFrame.Size = UDim2.new(0.9, 0, 0, 30); SliderFrame.Position = UDim2.new(0.05, 0, 0, 255)
+SliderFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+local SliderFill = Instance.new("Frame", SliderFrame)
+SliderFill.Size = UDim2.new(Settings.FOV / 500, 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(200, 0, 0); SliderFill.BorderSizePixel = 0
+local SliderText = Instance.new("TextLabel", SliderFrame)
+SliderText.Size = UDim2.new(1, 0, 1, 0); SliderText.BackgroundTransparency = 1; SliderText.Text = "FOV: " .. Settings.FOV
+SliderText.TextColor3 = Color3.new(1, 1, 1); SliderText.Font = Enum.Font.Code
+
+local isSliding = false
+SliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = true; dragging = false end
+end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = false end end)
+UserInputService.InputChanged:Connect(function(input)
+    if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local relX = math.clamp(input.Position.X - SliderFrame.AbsolutePosition.X, 0, SliderFrame.AbsoluteSize.X)
+        local scale = relX / SliderFrame.AbsoluteSize.X
+        Settings.FOV = math.floor(scale * 500)
+        SliderFill.Size = UDim2.new(scale, 0, 1, 0); SliderText.Text = "FOV: " .. Settings.FOV
+    end
+end)
+
+local FOVCircle = Instance.new("Frame", SG); FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5); FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOVCircle.BackgroundTransparency = 1; FOVCircle.Visible = false
+local UICorner = Instance.new("UICorner", FOVCircle); UICorner.CornerRadius = UDim.new(1, 0)
+local UIStroke = Instance.new("UIStroke", FOVCircle); UIStroke.Color = Color3.new(1, 0, 0); UIStroke.Thickness = 1
+
+-- --- LÓGICA CORE ---
+local Visuals = Instance.new("Folder", SG)
+local BoneStructure = {
+    {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"},
+    {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"},
+    {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}
+}
+
+local function GetLine()
+    local l = Instance.new("Frame", Visuals); l.BorderSizePixel = 0; l.BackgroundColor3 = Color3.new(1,0,0); l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
+    return l
+end
+
+local function GetText()
+    local t = Instance.new("TextLabel", Visuals); t.BackgroundTransparency = 1; t.TextColor3 = Color3.new(1,1,1); t.Font = Enum.Font.Code; t.TextSize = 14; t.Visible = false; t.Size = UDim2.new(0,100,0,20)
+    return t
+end
+
+local function GetViewportPos(worldPos)
+    local v, onScreen = Camera:WorldToViewportPoint(worldPos)
+    local inset = GuiService:GetGuiInset()
+    return Vector2.new(v.X, v.Y - inset.Y), onScreen
+end
+
+local Cache = {}
+local LockedPlayer = nil
+local CurrentTargetPart = "Head"
+
+RunService:BindToRenderStep("GeminiV1_Loop", Enum.RenderPriority.Camera.Value + 1, function()
+    if dragging and dragInput and not isSliding then
+        local delta = dragInput.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    if Settings.Noclip and LocalPlayer.Character then
+        for _, p in pairs(LocalPlayer.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+    end
+
+    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    
+    if Settings.Aimbot then
+        FOVCircle.Visible = true; FOVCircle.Size = UDim2.new(0, Settings.FOV * 2, 0, Settings.FOV * 2)
+        
+        -- Validar objetivo actual
+        if LockedPlayer then
+            local c = LockedPlayer.Character
+            if not c or not c:FindFirstChild("Humanoid") or c.Humanoid.Health <= 0 then 
+                LockedPlayer = nil 
+            elseif c:FindFirstChild(CurrentTargetPart) then
+                local part = c[CurrentTargetPart]
+                local dist3D = (Camera.CFrame.Position - part.Position).Magnitude
+                -- Validar distancia configurable y visibilidad (Wall Check)
+                if dist3D > _G.AimbotDistance or not IsVisible(part, c) then LockedPlayer = nil end 
+            end
+        end
+
+        -- Buscar nuevo objetivo si no hay uno fijado
+        if not LockedPlayer then
+            local closestDist = Settings.FOV
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character.Humanoid.Health > 0 then
+                    local targetPart = p.Character.Head
+                    local dist3D = (Camera.CFrame.Position - targetPart.Position).Magnitude
+                    
+                    -- Límite de Studs configurable y Wall Check antes de fijar
+                    if dist3D <= _G.AimbotDistance and IsVisible(targetPart, p.Character) then
+                        local posRaw, onS = Camera:WorldToViewportPoint(targetPart.Position)
+                        if onS then
+                            local dist = (Vector2.new(posRaw.X, posRaw.Y) - screenCenter).Magnitude
+                            if dist < closestDist then
+                                closestDist = dist; LockedPlayer = p
+                                if Settings.TargetMode == "Head" then CurrentTargetPart = "Head"
+                                elseif Settings.TargetMode == "Body" then CurrentTargetPart = "UpperTorso"
+                                else CurrentTargetPart = TargetParts[math.random(1, #TargetParts)] end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if LockedPlayer and LockedPlayer.Character and LockedPlayer.Character:FindFirstChild(CurrentTargetPart) then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, LockedPlayer.Character[CurrentTargetPart].Position)
+        end
+    else
+        FOVCircle.Visible = false; LockedPlayer = nil
+    end
+
+    -- Visuals (Mantenido igual)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local char = p.Character
+            local hum = char:FindFirstChild("Humanoid")
+            local isAlive = hum and hum.Health > 0
+            
+            if not Cache[p.Name] then
+                Cache[p.Name] = {Skeleton = {}, HP = GetText(), MainLine = GetLine()}
+                for i=1, #BoneStructure do table.insert(Cache[p.Name].Skeleton, GetLine()) end
+            end
+            local data = Cache[p.Name]
+
+            if isAlive then
+                local head = char:FindFirstChild("Head")
+                if head then
+                    local hPos, hOn = GetViewportPos(head.Position + Vector3.new(0, 1.5, 0))
+                    if Settings.HealthESP and hOn then
+                        data.HP.Visible = true; data.HP.Position = UDim2.new(0, hPos.X - 50, 0, hPos.Y)
+                        data.HP.Text = "HP: " .. math.floor(hum.Health)
+                        data.HP.TextColor3 = Color3.fromHSV(hum.Health/100 * 0.3, 1, 1) 
+                    else data.HP.Visible = false end
+                end
+
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local hrpPos, onS = GetViewportPos(hrp.Position)
+                    if Settings.ESP and onS then
+                        local start = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y - 30)
+                        local mag = (start - hrpPos).Magnitude
+                        data.MainLine.Visible = true; data.MainLine.Size = UDim2.new(0, mag, 0, 1); data.MainLine.Position = UDim2.new(0, (start.X + hrpPos.X)/2, 0, (start.Y + hrpPos.Y)/2); data.MainLine.Rotation = math.deg(math.atan2(hrpPos.Y - start.Y, hrpPos.X - start.X))
+                    else data.MainLine.Visible = false end
+                    for i, bone in ipairs(BoneStructure) do
+                        local p1, p2 = char:FindFirstChild(bone[1]), char:FindFirstChild(bone[2])
+                        if Settings.Skeleton and p1 and p2 then
+                            local v1, o1 = GetViewportPos(p1.Position); local v2, o2 = GetViewportPos(p2.Position)
+                            if o1 and o2 then
+                                local m = (v1-v2).Magnitude; data.Skeleton[i].Visible = true; data.Skeleton[i].Size = UDim2.new(0,m,0,1); data.Skeleton[i].Position = UDim2.new(0,(v1.X+v2.X)/2, 0,(v1.Y+v2.Y)/2); data.Skeleton[i].Rotation = math.deg(math.atan2(v2.Y-v1.Y,v2.X-v1.X))
+                            else data.Skeleton[i].Visible = false end
+                        else data.Skeleton[i].Visible = false end
+                    end
+                end
+                
+                local h = char:FindFirstChild("G_CHAM")
+                if Settings.Chams then if not h then h = Instance.new("Highlight", char); h.Name = "G_CHAM" end h.Enabled = true; h.FillColor = Color3.new(1,0,0)
+                elseif h then h.Enabled = false end
+            else
+                data.HP.Visible = false; data.MainLine.Visible = false
+                for _, l in pairs(data.Skeleton) do l.Visible = false end
+            end
+        end
+    end
+end)
+
+print("GEMINI V1 ULTIMATE V6 - WALL CHECK & STUDS VAR LOADED")
+
